@@ -94,3 +94,8 @@ globe.qa <- map(
 )
 globe.qa
 precis(globe.qa)
+
+## 2.4.3 Markov Chain Monte Carlo
+## MCMC - family of conditioning engines capable of handling highly complex
+## models. Instead of trying to compute or approximate the posterior distribution
+## directly, MCMC merely samples from the posterior distribution.
