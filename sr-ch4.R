@@ -326,3 +326,75 @@ shade(mu.HPDI, weight.seq)
 ## (2) Use summary functions like mean, HPDI, PI to find avergaes and lower and 
 ## upper bounds of mu for each value of the predcitor variable.
 ## (3) Use plot funcs lines() and shade() to draw intervals
+
+## 4.4.3.5 Prediction Intervals
+sim.height <- sim(m4.3, data = list(weight = weight.seq))
+?sim
+str(sim.height)
+height.PI <- apply(sim.height, 2, PI, prob = 0.89)
+plot(height ~ weight, d2, col = col.alpha(rangi2, .5))
+lines(weight.seq, mu.mean)
+shade(height.PI, weight.seq)
+
+sim.height <- sim(m4.3, data = list(weight = weight.seq), n=1e4)
+height.PI <- apply(sim.height, 2, PI, prob = 0.89)
+plot(height ~ weight, d2, col = col.alpha(rangi2, .5))
+lines(weight.seq, mu.mean)
+shade(height.PI, weight.seq)
+
+## 4.5 Poynomial Regression
+library(rethinking)
+data(Howell1)
+d <- Howell1
+str(d)
+plot(d$weight, d$height)
+
+d.adult <-d[d$age>=18,] 
+plot(d.adult$weight, d.adult$height)
+
+d.kids <- d[d$age < 18,]
+plot(d.kids$weight, d.kids$height)
+
+## mu_i = a + b_1*x_i + b_2*x_i^2
+
+## Standardize
+d$weight.s <- (d$weight - mean(d$weight))/sd(d$weight)
+
+## h_i ~ Normal(mu_i, sigma)        ## height ~ dnorm(mu, sigma)
+## mu_i = a + b_1*x_i + b_2*x_i^2   ## mu <- a + b1*weight.s + b2*weight.s^2
+## a ~ Normal(178, 100)             ## a ~ dnorm(178,100)
+## b_1 ~ Normal(0,10)               ## b1 ~ dnorm(0,10)
+## b_2 ~ Normal(0,10)               ## b2 ~ dnorm(0,10)
+## sigma ~ Uniform(0,50)            ## sigma ~ dunif(0,50)
+
+
+d$weight.s2 <- d$weight.s^2
+m4.5 <- map(alist(
+  height ~ dnorm(mu, sigma),
+  mu <- a + b1*weight.s + b2*weight.s2,
+  a ~ dnorm(178,100),
+  b1 ~ dnorm(0,10),
+  b2 ~ dnorm(0,10),
+  sigma ~ dunif(0,50)
+), data = d)
+
+precis(m4.5)
+
+
+weight.seq <- seq(from=-2.2, to=2, length.out = 30)
+pred_dat <- list(weight.s=weight.seq, weight.s2=weight.seq^2)
+mu <- link(m4.5, data = pred_dat)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI, prob = 0.89)
+sim.height <- sim(m4.5, data = pred_dat)
+height.PI <- apply(sim.height, 2, PI, prob=0.89)
+
+plot(height ~ weight.s, d, col=col.alpha(rangi2, .5))
+lines(weight.seq, mu.mean)
+shade(mu.PI, weight.seq)
+shade(height.PI, weight.seq)
+
+
+
+
+
