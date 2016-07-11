@@ -229,6 +229,100 @@ m4.3 <- map(alist(
 ## posterior probabilities of parameter values describe the relative comparability
 ## of different states of the world with the data, according to the model.
 
-## 4.4.3.1 Table if estimates
+## 4.4.3.1 Table of estimates
+
+precis(m4.3)
+precis(m4.3, corr = T)
 
 
+## CENTERING - subtracting the mean of a variable from each value
+
+d2$weight.c <- d2$weight - mean(d2$weight)
+
+## refit model using centered weight
+m4.4 <- map(alist(
+  height ~ dnorm(mu, sigma),
+  mu <- a + b*weight.c,
+  a ~ dnorm(178, 100),
+  b ~ dnorm(0,10),
+  sigma ~ dunif(0,50)
+), data = d2)
+
+
+precis(m4.4, corr = T)
+
+## 4.4.3.2 Plotting posterior inference against the data
+
+plot(height ~ weight, data = d2, xlab = "Weight (kg)", ylab = "Height (cm)")
+abline(a = coef(m4.3)["a"], b = coef(m4.3)["b"])
+
+## Adding uncertainty around the mean
+## sample
+post <- extract.samples(m4.3)
+post[1:5,]
+
+
+par(mfrow=c(2,2))
+
+data_sizes <- c(10,50,100,200)
+for (N in data_sizes) {
+  dN <- d2[1:N,]
+  dN
+  mN <- map(
+    alist(
+      height ~ dnorm(mu, sigma),
+      mu <- a + b * weight,
+      a ~ dnorm(178, 100),
+      b ~ dnorm(0, 10),
+      sigma ~ dunif(0, 50)
+    ),
+    data = dN
+  )
+  
+  ## extract 20 samples from posterior
+  post <- extract.samples(mN, n = 20)
+  
+  ## display raw data and sample size
+  plot(dN$weight, dN$height, xlim = range(d2$weight), ylim = range(d2$height), col = rangi2)
+  mtext(paste0("N = ", N))
+  
+  for (i in 1:20) {
+    abline(a=post$a[i], b = post$b[i], col=col.alpha("black", 0.3))
+  }
+}
+
+## Plotting regression intervals and contours
+## for pedagogy focus on a single weight value, e.g., 50 kg
+mu_at_50 <- post$a + post$b * 50
+mu_at_50
+dens(mu_at_50, col=rangi2, lwd=2, xlab = "mu|weight=50")
+HPDI(mu_at_50, prob = .89)
+
+## link function - takes map model fit, samples from the posterior distribution,
+## computes mu for each case
+
+mu <- link(m4.3)
+str(mu)
+
+## define sequences of weights to compute predictions for these values will be
+## on the horiz axis
+weight.seq <- seq(from=25, to = 70, by = 1)
+## use link to compute mu for each sample from posterior and 
+## for each weight in weght.seq
+
+mu <- link(m4.3, data = data.frame(weight=weight.seq))
+str(mu)
+
+mu.mean <- apply(mu, 2, mean)
+mu.HPDI <- apply(mu, 2, HPDI, prob = .89)
+plot(height ~ weight, data = d2, col = col.alpha(rangi2, 0.5))
+lines(weight.seq, mu.mean)
+shade(mu.HPDI, weight.seq)
+
+## How to generate predictions and intervals from the posterior of a fit model
+## (1) Use link to generate distributions of posterior values of mu. The 
+## default behavior of link is to use the original data, so yo have to pass it a 
+## list of new horizontal axis values you want to plot posterior predictions across.
+## (2) Use summary functions like mean, HPDI, PI to find avergaes and lower and 
+## upper bounds of mu for each value of the predcitor variable.
+## (3) Use plot funcs lines() and shade() to draw intervals
