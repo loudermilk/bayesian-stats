@@ -151,11 +151,264 @@ pred.data <- data.frame(
 ## (1) did the model fit correctly?
 ## (2) how does the model fail?
 
+## call link w/out specifying new data so it uses orig data
+mu <- link(m5.3)
+## summarize samples across cases
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+## simulate observations
+## again no new data so it uses orig data
+divorce.sim <- sim(m5.3, n=1e4)
+divorce.PI <- apply(divorce.sim, 2, PI)
+
+plot(mu.mean ~ d$Divorce, col= rangi2, ylim = range(mu.PI),
+     xlab="Observed Divorce", ylab="Predicted Divorce")
+abline(a=0, b=1, lty = 2)
+for (i in 1:nrow(d)) {
+  lines(rep(d$Divorce[i],2),c(mu.PI[1,i],mu.PI[2,i]),col=rangi2)
+}
+# label a few select pts
+identify(x= d$Divorce, y = mu.mean, labels=d$Loc, cex=0.8)
+
+## compute residuals
+divorce.resid <- d$Divorce - mu.mean
+## get ordering by divorce rate
+o <- order(divorce.resid)
+## make plot
+dotchart(divorce.resid[o], labels=d$Loc[o], xlim=c(-6,5), cex=0.6)
+abline(v=0, col=col.alpha("red",0.5))
+for (i in 1:nrow(d)) {
+  j <- o[i]
+  lines(d$Divorce[j] - c(mu.PI[1,j], mu.PI[2,j]), rep(i,2))
+  points(d$Divorce[j] - c(divorce.PI[1,j], divorce.PI[2,j]), rep(i,2), pch=3, cex=0.6,col="grey")
+}
 
 
+plot(divorce.resid, d$WaffleHouses/d$Population)
+
+## 5.2 Masked Relationship
+library(rethinking)
+data(milk)
+d <- milk
+str(d)
+
+## to what extent is energy content of milk related to percent neocortex brain mass
+m5.5 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bn*neocortex.perc,
+    a ~ dnorm(0,100),
+    bn ~ dnorm(0,1),
+    sigma ~ dunif(0,1)
+  ), data = d
+)
+
+## strange error msg need to investigate (discusses in book)
+d$neocortex.perc
+
+dcc <- d[complete.cases(d),]
+m5.5 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bn*neocortex.perc,
+    a ~ dnorm(0,100),
+    bn ~ dnorm(0,1),
+    sigma ~ dunif(0,1)
+  ), data = dcc
+)
+
+precis(m5.5, digits = 3)
+coef(m5.5)["bn"]*(76-55)
+
+np.seq <- 0:100
+pred.data <- data.frame(neocortex.perc=np.seq)
+mu <- link(m5.5, data = pred.data, n= 1e4)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(kcal.per.g ~ neocortex.perc, data = dcc, col = rangi2, ylim=c(0,1))
+lines(np.seq, mu.mean)
+lines(np.seq, mu.PI[1,], lty = 2)
+lines(np.seq, mu.PI[2,], lty = 2)
+
+## try log(mass of mother)
+dcc$log.mass <- log(dcc$mass)
+
+m5.6 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bm*log.mass,
+    a ~ dnorm(0,100),
+    bm ~ dnorm(0,1),
+    sigma ~ dunif(0,1)
+  ), data = dcc
+)
+precis(m5.6)
 
 
+np.seq <- 0:100
+pred.data <- data.frame(log.mass=np.seq)
+mu <- link(m5.6, data = pred.data, n= 1e4)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(kcal.per.g ~ log.mass, data = dcc, col = rangi2)
+lines(np.seq, mu.mean)
+lines(np.seq, mu.PI[1,], lty = 2)
+lines(np.seq, mu.PI[2,], lty = 2)
 
 
+## Add both as predictors
+m5.7 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bn*neocortex.perc + bm*log.mass,
+    a ~ dnorm(0, 100),
+    bn ~ dnorm(0, 1), 
+    bm ~ dnorm(0,1),
+    sigma ~ dunif(0,1)
+  ), data = dcc
+)
 
+precis(m5.7)
+
+mean.log.mass <- mean(log(dcc$mass))
+np.seq <- 0:100
+pred.data <- data.frame(
+  neocortex.perc = np.seq,
+  log.mass = mean.log.mass
+)
+
+mu <- link(m5.7, data = pred.data, n = 1e4)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(kcal.per.g ~ neocortex.perc, data = dcc, type = "n")
+lines(np.seq, mu.mean)
+lines(np.seq, mu.PI[1,], lty = 2)
+lines(np.seq, mu.PI[2,], lty = 2)
+
+## try it for log(mass)
+mean.neocortex.perc <- mean(dcc$neocortex.perc)
+np.seq <- 0:100
+pred.data <- data.frame(
+  neocortex.perc = mean.neocortex.perc,
+  log.mass = np.seq
+)
+
+mu <- link(m5.7, data = pred.data, n = 1e4)
+mu.mean <- apply(mu, 2, mean)
+mu.PI <- apply(mu, 2, PI)
+
+plot(kcal.per.g ~ log.mass, data = dcc, type = "n")
+lines(np.seq, mu.mean)
+lines(np.seq, mu.PI[1,], lty = 2)
+lines(np.seq, mu.PI[2,], lty = 2)
+
+## 5.3 When adding variables hurts
+## (1) multicolinearity - very strong correlation bw 2+ predictor variables - 
+## posterior distribution will say that a very large range of parameter values
+## are plausible 
+## (2) post-treatment bias
+## (3) over-fitting
+
+## 5.3.1 Mulicollinear legs (simulated data: predict height from leg lengths)
+N <- 100
+height <- rnorm(N, 10, 2)
+leg_prop <- runif(N, 0.4, 0.5)
+leg_left <- leg_prop * height + rnorm(N, 0, 0.02)
+leg_right <- leg_prop * height + rnorm(N, 0, 0.02)
+d <- data.frame(height, leg_left, leg_right)
+
+
+m5.8 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bl * leg_left + br * leg_right,
+    a ~ dnorm(10,100),
+    bl ~ dnorm(2,10),
+    br ~ dnorm(2,10),
+    sigma ~ dunif(0, 10)
+  ), data = d
+)
+precis(m5.8)
+
+post <- extract.samples(m5.8)
+plot(bl ~ br, post, col=col.alpha(rangi2, 0.2), pch=16)
+
+sum_blbr <- post$bl + post$br
+dens(sum_blbr, col=rangi2, lwd=2, xlab="sum of br and bl")
+
+m5.9 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bl*leg_left,
+    a ~ dnorm(10,100),
+    bl ~ dnorm(2, 10),
+    sigma ~ dunif(0, 10)
+  ), data = d
+)
+precis(m5.9)
+
+## when two predictor variables are strongly correlated, including both in a 
+## model may lead to confusion.
+
+## 5.3.2 Multicollinear milk
+library(rethinking)
+data(milk)
+d <- milk
+
+## model kcal as funcion of perc.fat and perc.lactose
+## start with two bivariate models
+names(d)
+m5.10 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bF * perc.fat,
+    a ~ dnorm(0.6, 10),
+    bF ~ dnorm(0,1),
+    sigma ~ dunif(0, 10)
+  ), data = d
+)
+precis(m5.10)
+
+m5.11 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bL * perc.lactose,
+    a ~ dnorm(0.6, 10),
+    bL ~ dnorm(0, 1),
+    sigma ~ dunif(0, 10)
+  ), data = d
+)
+precis(m5.11)
+
+cor(d$perc.fat, d$perc.lactose)
+
+
+m5.12 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bF * perc.fat + bL * perc.lactose,
+    a ~ dnorm(0.6, 10),
+    bF ~ dnorm(0,1),
+    bL ~ dnorm(0,1),
+    sigma ~ dunif(0, 10)
+  ), data = d
+)
+precis(m5.12)
+pairs(~kcal.per.g + perc.fat + perc.lactose, data = d, col = rangi2)
+
+## 5.3.3 Post-treatment bias
+## mistaken inferences that arise from omitting predictor variables. Called
+## omitted variable bias (post-treatment bias is including variables)
+
+## number of plants
+N <- 100
+h0 <- rnorm(N, 10, 2)
+treatment <- rep(0:1, each = N/2)
+fungus <- rbinom(N, size = 1, prob = 0.5 - treatment*0.4)
+h1 <- h0 + rnorm(N, 5 - 3*fungus)
+d <- data.frame(h0=h0, h1=h1, treatment=treatment, fungus=fungus)
+head(d)
 
