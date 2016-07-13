@@ -514,3 +514,56 @@ precis(data.frame(mu.ape, mu.nwm, mu.owm, mu.s))
 diff.NWM.OWM <- mu.nwm - mu.owm
 quantile(diff.NWM.OWM, probs = c(0.025, 0.5, 0.975))
 
+
+## 5.4.3 Adding regular predictor variables
+## 5.4.4 Another approach: Unique intercepts
+## construct a vector of intercept parameters, one parameter for each category.
+## then you create an index variable in your df that says which parameter 
+## goes with each case.
+
+(d$clade_id <- coerce_index(d$clade))
+
+
+m5.16 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a[clade_id],
+    a[clade_id] ~ dnorm(0.6, 10),
+    sigma ~ dunif(0,10)
+  ), data = d
+)
+precis(m5.16, depth = 2)
+
+## 5.5 Ordinary least squares and lm
+## OLS - ordinary least squares - means of estimating parameters of linear regression
+## instead of searching for the combination of parameter values that maximizes 
+## posterior probabilty, OLS solves for the parameter values  that minimize the
+## sum of the squared residuals.
+
+## in R, many model fitting functions use DESIGN FORMULA notation.
+## takes the expression for mu_i and strips out the parameters, leaving only
+## a series of predictor names separated by '+' and uses flat priors.
+
+## 5.5.2 Using lm
+m5.17 <- lm(y ~ 1 + x, data = d)
+m5.17 <- lm(y ~ x, data = d) ## same expression as above intercepts optional
+m5.18 <- lm(y ~ 1 + x + z + w, data = d)
+
+## 5.5.2.2 Categorical variables 
+## `lm` will automatically expand a categorical variable into dummy variables
+
+## 5.5.2.3 Transform variable first
+## 5.5.2.4 No estimate for sigma
+## 5.5.3 Building map formulas from lm formulas
+
+data(cars)
+d <- cars
+head(d)
+names(d)
+glimmer(
+formula = dist ~ speed, data = d
+)
+?glimmer
+
+
+
