@@ -405,10 +405,112 @@ pairs(~kcal.per.g + perc.fat + perc.lactose, data = d, col = rangi2)
 
 ## number of plants
 N <- 100
+## simulate intial heights
 h0 <- rnorm(N, 10, 2)
+## assign 50% to treatment
 treatment <- rep(0:1, each = N/2)
+## treatment groups have less fungus
 fungus <- rbinom(N, size = 1, prob = 0.5 - treatment*0.4)
+## fungus has less growth
 h1 <- h0 + rnorm(N, 5 - 3*fungus)
 d <- data.frame(h0=h0, h1=h1, treatment=treatment, fungus=fungus)
 head(d)
+
+
+m5.13 <- map(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <- a + bH*h0 + bT*treatment + bF*fungus,
+    a ~ dnorm(0, 100),
+    c(bH, bT, bF) ~ dnorm(0,10),
+    sigma ~ dunif(0,10)
+  ), data = d
+)
+precis(m5.13)
+
+## problem is that fungus is a consequence of treatment
+## need to remove treatment from stats
+
+m5.14 <- map(
+  alist(
+    h1 ~ dnorm(mu, sigma),
+    mu <- a + bH*h0 + bT*treatment,
+    a ~ dnorm(0, 100),
+    c(bH, bT) ~ dnorm(0,10),
+    sigma ~ dunif(0,10)
+  ), data = d
+)
+precis(m5.14)
+
+## including post-treatment variables can causal influence of treatment
+
+## 5.4 Categorical variables
+## 5.4.1 Binary categories
+## !Kung data incl sex as predictor
+
+data(Howell1)
+d <- Howell1
+str(d)
+
+## h_i ~ Normal(mu_i, sigma)
+## mu_i = a +bM*m_i
+## a ~ Normal(178, 100)
+## bM ~ Normal(0, 10)
+## sigma ~ Uniform(0, 50)
+
+m5.15 <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bM*male,
+    a ~ dnorm(178, 100),
+    bM ~ dnorm(0, 10),
+    sigma ~ dunif(0, 50)
+  ), data = d
+)
+precis(m5.15)
+
+## a - average height among females b/c when m_i = 0 predicted height is a
+## bM is the average difference between males and females
+
+post <- extract.samples(m5.15)
+mu.male <- post$a + post$bM
+PI(mu.male)
+
+
+## 5.4.2 Many categories
+## to incl k categories in a linear model you need k-1 dummy variables
+
+data(milk)
+d <- milk
+str(d)
+unique(d$clade)
+
+## create dummy for new world monkey
+(d$clade.NWM <- ifelse(d$clade == "New World Monkey",1,0))
+d$clade.OWM <- ifelse(d$clade == "Old World Monkey",1,0)
+d$clade.S <- ifelse(d$clade == "Strepsirrhine",1,0)
+## default is Ape -- "intercept" category
+
+m5.16 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, sigma),
+    mu <- a + bNWM*clade.NWM + bOWM*clade.OWM + bS*clade.S,
+    a ~ dnorm(0.6, 10),
+    c(bNWM, bOWM, bS) ~ dnorm(0,1),
+    sigma ~ dunif(0,10)
+  ), data = d
+)
+precis(m5.16)
+
+## get posterior distributions of the avg milk energy in each category
+post <- extract.samples(m5.16)
+mu.ape <- post$a
+mu.nwm <- post$a + post$bNWM
+mu.owm <- post$a + post$bOWM
+mu.s <- post$a + post$bS
+
+precis(data.frame(mu.ape, mu.nwm, mu.owm, mu.s))
+
+diff.NWM.OWM <- mu.nwm - mu.owm
+quantile(diff.NWM.OWM, probs = c(0.025, 0.5, 0.975))
 
