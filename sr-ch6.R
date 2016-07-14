@@ -146,9 +146,31 @@ for (i in kseq) {
 ## (3) sample size N much greater than number of parameters k.
 
 ## DIC - Deviance Information Criterion
+## DIC is essentially AIC that is aware of informative priors and which 
+## assumes a multivariate gaussian posterior dist.
+## Define D as the posterior distribution of deviance
+## D_avg is average D
+## D_hat is deviance calculated at the posterior mean
+## DIC = D_avg +(D_avg - D_hat) = D_avg + pD
+## pD is analogous to the num of params in calc of AIC that measure
+## how flexible the model is (and thus its relative risk in overfitting)
+## pD is sometimes called the penalty term
 
+## WAIC Widely Applicable Information Criterion
+## also calculated by taking the averages of log-likelihood over the 
+## posterior distribution
 
-## WAIC
+## lppd log-pointwise-predictive-density - total across observations of the
+## logarithm of the average likelihood of each observation (its a pointwise
+## analogue of deviance).
+
+## pWAIC - effective number of parameters
+
+## another estimate of out-of-sample deviance
+## WAIC = -2(lppd-pWAIC)
+
+## Overthinking: WAIC Calculations
+
 data(cars)
 str(cars)
 m <- map(
@@ -167,6 +189,8 @@ ll <- sapply(1:n_samples, function(s){
   mu <- post$a[s] + post$bS[s]*cars$speed
   dnorm(cars$dist, mu, post$sigma[s], log = TRUE)
 })
+
+## 50 by 1000 matrix of log-likelihood w obs in rows and samples in cols
 dim(ll)
 
 n_cases <- nrow(cars)
@@ -174,3 +198,107 @@ lppd <- sapply(1:n_cases, function(i) log_sum_exp(ll[i,]) - log(n_samples))
 sum(lppd)
 pWAIC <- sapply(1:n_cases, function(i) var(ll[i,]))
 -2*(sum(lppd)-sum(pWAIC))
+
+waic_vec <- -2 * (lppd - pWAIC)
+sqrt(n_cases*var(waic_vec))
+
+## 6.4.3 DIC and WAIC as estimates of deviance
+## regularization, as long as its not too strong, reduces overfitting for any
+## particular model. Information criterion instead helps us measure overfitting
+## across models fit to the same data.
+
+## 6.5 Using information criterion
+
+
+## 6.5.1 Model comparison
+data(milk)
+d <- milk[complete.cases(milk), ]
+d$neocortex <- d$neocortex.perc/100
+dim(d)
+
+a.start <- mean(d$kcal.per.g)
+sigma.start <- log(sd(d$kcal.per.g))
+
+m6.11 <- map(
+  alist(
+    kcal.per.g ~ dnorm(a, exp(log.sigma))
+  ), data = d, start=list(a=a.start, log.sigma = sigma.start)
+)
+
+
+m6.12 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, exp(log.sigma)),
+    mu <- a + bn*neocortex
+  ), data = d, start=list(a=a.start, bn = 0, log.sigma = sigma.start)
+)
+
+m6.13 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, exp(log.sigma)),
+    mu <- a + bm*log(mass)
+  ), data = d, start=list(a=a.start, bm = 0, log.sigma = sigma.start)
+)
+
+
+m6.14 <- map(
+  alist(
+    kcal.per.g ~ dnorm(mu, exp(log.sigma)),
+    mu <- a + bn*neocortex + bm*log(mass)
+  ), data = d, start=list(a=a.start, bn = 0, bm = 0, log.sigma = sigma.start)
+)
+
+
+(milk.models <- compare(m6.11, m6.12, m6.13, m6.14))
+plot(milk.models, SE = TRUE, dSE = TRUE)
+
+
+WAIC(m6.14)
+
+## a model's weight is an estimate of the probability that the model will
+## make the best predictions on new data, conditional on the set of models considered
+
+diff <- rnorm(1e5, 6.7, 7.26)
+sum(diff<0)/1e5
+
+## how you interpret differences in information criteria always depends on context:
+## sample size, past research, nature of measurements.
+
+## 6.5.1.2 Comparing estimates
+## it is useful to compare parameter estimates among models
+## (1) why do models have low WAIC values?
+## (2) is a parameters post distribution across models stable?
+
+library(rethinking)
+plot(coeftab(m6.11, m6.12, m6.13, m6.14))
+precis.plot(coeftab(m6.11, m6.12, m6.13, m6.14))
+
+## 6.5.2 Model averaging
+## compute counterfactual predictions
+# neocortex from 0.5 - 0.8
+nc.seq <- seq(from = 0.5, to = 0.8, length.out = 30)
+d.predict <- list(
+  kcal.pre.g = rep(0, 30), #empty outcome
+  neocortex = nc.seq, #sequence of neocortex
+  mass = rep(4.5, 30) # average mass
+)
+pred.m6.14 <- link(m6.14, data = d.predict)
+mu <- apply(pred.m6.14, 2, mean)
+mu.PI <- apply(pred.m6.14, 2, PI)
+
+plot(kcal.per.g ~ neocortex, d, col=rangi2)
+lines(nc.seq, mu, lty=2)
+lines(nc.seq, mu.PI[1,], lty=2)
+lines(nc.seq, mu.PI[2,], lty=2)
+
+## compute and add model averaged posterior predictions
+## (1) Compute WAIC for each model
+## (2) Compute weight for each model
+## (3) Compute linear model & simulated outcomes for each model
+## (4) Combine values into ensemble of predictions using model weights as proportions
+
+milk.ensemble <- ensemble(m6.11, m6.12, m6.13, m6.14, data = d.predict)
+mu <- apply(milk.ensemble$link, 2, mean)
+mu.PI <- apply(milk.ensemble$link, 2, PI)
+lines(nc.seq, mu)
+shade(mu.PI, nc.seq)
