@@ -86,3 +86,67 @@ plot(m8.1stan)
 ## iter = 2000; warmup = iter/2
 
 ## 8.4.2 How many chains do you need?
+## (1) when debugging use a single chain
+## (2) when deciding whether chains are valid you need more than one chain
+## (3) when you begin final run to make ineferences from you need one chain
+
+## motto: four short chains to check, one long chain for inference
+
+## 8.4.3 Taming a wild chain
+## one problem w some models is that there are broad flat regions of the 
+## posterior density (typically caused by using flat priors). This can generate
+## a wild wandering markov chain that erratically samples extremely positive and
+## extremely negative parameter values.
+
+y <- c(-1,1)
+map8.2 <- map2stan(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu <- alpha
+  ), data=list(y=y), start=list(alpha=0, sigma = 1), chains = 2, iter = 4000, warmup = 1000)
+
+precis(map8.2)
+plot(map8.2)
+
+## tame the chain by using weakly informative priors
+## flat priors say that every possible value of the parameter is equally
+## plausible apriori.
+
+y <- c(-1,1)
+m8.3 <- map2stan(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu <- alpha,
+    alpha ~ dnorm(0,10),
+    sigma ~ dcauchy(0,1)
+  ), data=list(y=y), start=list(alpha=0, sigma = 1), chains = 2, iter = 4000, warmup = 1000)
+precis(m8.3)
+plot(m8.3)
+
+## 8.4.4 Non-identifiable parameters
+y <- rnorm(100, mean = 0, sd = 1)
+
+m8.4 <- map2stan(alist(
+  y ~ dnorm(mu, sigma),
+  mu <- a1 + a2,
+  sigma ~ dcauchy(0,1)
+), data=list(y=y), start=list(a1=0,a2=0,sigma=1), chains=2, iter=4000, warmup=1000
+)
+precis(m8.4)
+plot(m8.4)
+
+## weak priors to the rescue!!!
+
+m8.5 <- map2stan(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu <- a1 + a2,
+    c(a1,a2) ~ dnorm(0,10),
+    sigma ~ dcauchy(0,1)
+  ), data=list(y=y), start=list(a1=0,a2=0,sigma=1), chains=2, iter=4000, warmup=1000
+)
+precis(m8.5)
+plot(m8.5)
+
+
+
