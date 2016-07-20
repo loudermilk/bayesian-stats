@@ -380,7 +380,58 @@ shade(lambda.PI, log_pop.s, col=col.alpha("black",0.2))
 ## 10.2.2 MCMC islands
 m10.10stan <- map2stan(m10.10, iter = 3000, warmup = 1000, chains = 4)
 precis(m10.10stan)
+pairs(m10.10stan)
+## HMC is going to be less effective when there are strong correlations
+## in the posterior dist
 
+## centering predictors aids in inference
+names(d)
+d$log_pop.c <- d$log_pop - mean(d$log_pop)
+m10.10.c <- map2stan(
+  alist(
+    total_tools ~ dpois(lambda),
+    log(lambda) <- a + bp*log_pop.c + bc*high_contact + bcp*log_pop.c*high_contact,
+    a ~ dnorm(0,10),
+    c(bp, bc, bcp) ~ dnorm(0,1)
+  ), data = d, iter = 3000, warmup = 1000, chains = 4
+)
+precis(m10.10.c)
+pairs(m10.10.c)
 
+## 10.2.3 Exposure and offset
+## true lambda = 1.5 manuscripts/day
+true_lambda <- 1.5
+num_days <- 30
+y <- rpois(num_days, true_lambda)
+y
 
+## true rate of new monastery lambda = 0.5
+## data only reported at weekly intervals
+new_true_lambda <- 0.5
+num_weeks <- 4
+y_new <- rpois(num_weeks, new_true_lambda*7)
+y_new
 
+y_all <- c(y,y_new)
+exposure <- c(rep(1,30), rep(7,4))
+monastery <- c(rep(0,30),rep(1,4))
+d <- data.frame(y=y_all, days = exposure, monastery = monastery)
+head(d)
+tail(d)
+
+d$log_days <- log(d$days)
+
+m10.15 <- map(
+  alist(
+    y ~ dpois(lambda),
+    log(lambda) <- log_days + a + b*monastery,
+    a ~ dnorm(0,100),
+    b ~ dnorm(0,1)
+  ), data = d
+) 
+precis(m10.15)
+
+post <- extract.samples(m10.15)
+lambda_old <- exp(post$a)
+lambda_new <- exp(post$a + post$b)
+precis(data.frame(lambda_old, lambda_new))
