@@ -435,3 +435,75 @@ post <- extract.samples(m10.15)
 lambda_old <- exp(post$a)
 lambda_new <- exp(post$a + post$b)
 precis(data.frame(lambda_old, lambda_new))
+
+## 10.3 Other count regressions
+## 10.3.1 Multinomial
+## when more than two types of events are possible and the probability of
+## each event is constant acrosss trials, then the maximum entropy distribution
+## is the MULTINOMIAL DISTRIBUTION (aka a model build on multinomial dist is also
+## called categorical regression or a MAX ENT CLASSIFIER.
+
+## 10.3.1.1 Explicit multinomial models
+## modeling career choice
+## simulate fake career choices
+
+N <- 500
+income <- 1:3
+score <- 0.5*income
+## convert scores to probabilities
+(p <- softmax(score[1], score[2], score[3]))
+score
+
+career <- rep(NA, N)
+for (i in 1:N) {
+  career[i] <- sample(1:3, size = 1, prob = p)
+}
+table(career)
+
+# fit model w dcategorical and softmax link
+m10.16 <- map(
+  alist(
+    career ~ dcategorical(softmax(0,s2,s3)),
+    s2 <- b*2,
+    s3 <- b*3,
+    b ~ dnorm(0,5)
+  ), data = list(career = career)
+)
+
+## BEWARE - estimates from these models are difficult to interpret - you
+## must convert them to a vector of probabilities b/c the estimates swing
+## abouot dependeing upon which event type you assign a constant score
+
+N <- 100
+## simulate family incomes for each indiv
+family_income <- runif(N)
+## assign unique coef for each event type
+b <- (-1:1)
+career <- rep(NA, N)
+for (i in 1:N) {
+  score <- 0.5*(1:3) + b*family_income[i]
+  p <- softmax(score[1], score[2], score[3])
+  career[i] <- sample(1:3, size = 1, prob = p)
+}
+
+m10.17 <- map(
+  alist(
+    career ~ dcategorical(softmax(0,s2,s3)),
+    s2 <- a2 + b2*family_income,
+    s3 <- a3 + b3*family_income,
+    c(a2,a3,b2,b3) ~ dnorm(0,5)
+  ), data = list(career=career, family_income=family_income)
+)
+precis(m10.17)
+
+## 10.3.1.2 Multinomial in disguise as Poisson
+## refactor a multinomial likelihood into series of Poisson likelihoods
+
+
+## 10.3.2 Geometric - when a count variable is a number of events up until
+## something happened (i.e. the terminating event) - what's the probability
+## of that event? Use EVENT HISTORY ANALYSIS or SURVIVAL ANALYSIS.
+
+
+
+
