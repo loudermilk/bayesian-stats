@@ -119,5 +119,193 @@ partpool_error <- abs(dsim$p_partpool - dsim$p_true)
 plot(1:60, nopool_error, xlab="pond", ylab="abs error", col=rangi2, pch=16)
 points(1:60, partpool_error)
 
+## 12.3 More than one type of cluster
+library(rethinking)
+data(chimpanzees)
+d <- chimpanzees
+str(d)
+head(d)
+d$recipient <- NULL #get rid of NAs
+
+m12.4 <- map2stan(
+  alist(
+    pulled_left ~ dbinom(1,p),
+    logit(p) <- a + a_actor[actor] + (bp + bpC*condition)*prosoc_left,
+    a_actor[actor] ~ dnorm(0,sigma_actor),
+    a ~ dnorm(0,10),
+    bp ~ dnorm(0,10), 
+    bpC ~ dnorm(0,10),
+    sigma_actor ~ dcauchy(0,1)
+  ), data = d, chains = 2, cores = 3, iter = 5000, warmup = 1000
+)
+plot(m12.4)
+precis(m12.4)
+
+post <- extract.samples(m12.4)
+total_a_actor <- sapply(1:7, function(actor) post$a + post$a_actor[,actor])
+round(apply(total_a_actor,2,mean),2)
+
+## 12.3.2 Two types of cluster (add block)
+## fit model that uses both actor and block
+d$block_id < d$block # name `block` is reserved by stan
+m12.5 <- map2stan(
+  alist(
+    pulled_left ~ dbinom(1, p),
+    logit(p) <- a + a_actor[actor] + a_block[block_id] + (bp + bpc*condition)*prosoc_left,
+    a_actor[actor] ~ dnorm(0, sigma_actor),
+    a_block[block_id] ~ dnorm(0, sigma_block),
+    c(a,bp, bpc) ~ dnorm(0,10),
+    sigma_actor ~ dcauchy(0,1),
+    sigma_block ~ dcauchy(0,1)
+  ), data = d, warmup = 1000, iter = 6000, chains = 1, cores = 1
+)
+
+## 12.4 Multilevel posterior predictions
+## MODEL CHECKING - compare the sample to the posterior predictions of the fit model
+## producing implied predictions from a fit model is helpful for understanding
+## what the model means. INFORMATION CRITERIA (like DIC & WAIC) provide simple estimates
+## of out-of-sample model accuracy, like the KL divergence. IC provide rough measure of
+## a model's flexibility and therefore overfitting risk.
+
+## in chimpanzees there are 7 unique actors - these are clusters.
+precis(m12.4, depth=2)
+## the whole pt of partial pooling is to shrink estimates towards the grand mean
+
+chimp <- 2
+d.pred <- list(
+  prosoc_left = c(0,1,0,1),
+  condition = c(0,0,1,1),
+  actor = rep(chimp, 4)
+)
+d.pred
+link.m12.4 <- link(m12.4, data = d.pred)
+pred.p <- apply(link.m12.4, 2, mean)
+pred.p.PI <- apply(link.m12.4, 2, PI)
+
+par(mfrow=c(1,1))
+
+plot(0,0,type='n', xlab="prosoc_left/condition", ylab="proportion pulled left", ylim=c(0,1),xaxt="n", xlim=c(1,4))
+axis(1,at=1:4, labels = c("0/0","1/0", "0/1","1/1"))
+
+p <- by(d$pulled_left, list(d$prosoc_left, d$condition, d$actor), mean)
+for (chimp in 1:7) {
+  lines(1:4, as.vector(p[,,chimp]), col=rangi2, lwd = 1.5)
+}
+lines(1:4, pred.p)
+shade(pred.p.PI, 1:4)
+post <- extract.samples(m12.4)
+str(post)
+dens(post$a_actor[,5])
+
+p.link <- function(prosoc_left, condition, actor) {
+  logodds <- with(post, 
+                  a + a_actor[,actor] + (bp +bpC * condition)*prosoc_left
+                  )
+  return(logistic(logodds))
+}
+
+## compute predictions
+prosoc_left <- c(0,1,0,1)
+condition <- c(0,0,1,1)
+pred.raw <- sapply(1:4, function(i) p.link(prosoc_left[i], condition[i], 2))
+pred.p <- apply(pred.raw, 2, mean)
+pred.p.PI <- apply(pred.raw, 2, PI)
+
+## 12.4.2 Posterior prediction for new clusters
+## often the particular clusters in the sample are not of any enduring interest - in the
+## chimpanzee data, for examoke, we'd like to make inferences about the population, so
+## the actor intercepts are not of interest.
+
+## imagine leaving out one of the clusters when you fit the data. Use the a and sigma_actor
+## parameters because they descrive the population of actors.
+## how to construct posterior predictions for a now, previously unobserved average actor.
+## by average, I mean a chimp with an intercept exactly at the mean a.
+
+library(rethinking)
+data(chimpanzees)
+d <- chimpanzees
+str(d)
+head(d)
+d$recipient <- NULL #get rid of NAs
+
+m12.4 <- map2stan(
+  alist(
+    pulled_left ~ dbinom(1,p),
+    logit(p) <- a + a_actor[actor] + (bp + bpC*condition)*prosoc_left,
+    a_actor[actor] ~ dnorm(0,sigma_actor),
+    a ~ dnorm(0,10),
+    bp ~ dnorm(0,10), 
+    bpC ~ dnorm(0,10),
+    sigma_actor ~ dcauchy(0,1)
+  ), data = d, chains = 2, cores = 3, iter = 5000, warmup = 1000
+)
+plot(m12.4)
+precis(m12.4)
+
+
+d.pred <- list(
+  prosoc_left = c(0,1,0,1),
+  condition = c(0,0,1,1),
+  actor = rep(2,4)
+)
+
+## replace varying interceot samples w zeros
+## 1000 samples by 7 actors
+a_actor_zeros <- matrix(0,1000,7)
+
+## fire up link
+link.m12.4 <- link(m12.4, n = 1000, data=d.pred, replace = list(a_actor=a_actor_zeros))
+
+## summarize & plot
+pred.p.mean <- apply(link.m12.4, 2, mean)
+pred.p.PI <- apply(link.m12.4, 2, PI, prob=0.8)
+par(mfrow=c(1,1))
+plot(0,0,type="n",xlab="prosoc_left/condition", 
+     ylab="proportion pulled left", ylim=c(0,1),xaxt="n",xlim=c(1,4))
+axis(1, at = 1:4, labels=c("0/0","1/0", "0/1", "1/1"))
+lines(1:4, pred.p.mean)
+shade(pred.p.PI, 1:4)
+
+## to show variation among actors use sigma_alpha in calculation
+## replace varying intercept samples with simulations
+post <- extract.samples(m12.4)
+a_actor_sims <- rnorm(7000, 0, post$sigma_actor)
+a_actor_sims <- matrix(a_actor_sims, 1000, 7)
+
+## pass simulated intercepts into link
+link.m12.4 <- link(m12.4, n = 1000, data = d.pred, replace = list(a_actor=a_actor_sims))
+
+## summarize & plot
+pred.p.mean <- apply(link.m12.4, 2, mean)
+pred.p.PI <- apply(link.m12.4, 2, PI, prob=0.8)
+par(mfrow=c(1,1))
+plot(0,0,type="n",xlab="prosoc_left/condition", 
+     ylab="proportion pulled left", ylim=c(0,1),xaxt="n",xlim=c(1,4))
+axis(1, at = 1:4, labels=c("0/0","1/0", "0/1", "1/1"))
+lines(1:4, pred.p.mean)
+shade(pred.p.PI, 1:4)
+
+## simulate a new actor from the estimated population of actors and then
+## computes probabilities of pulling the left lever for each of the 4 treatments
+
+post <- extract.samples(m12.4)
+sim.actor <- function(i) {
+  sim_a_actor <- rnorm(1,0,post$sigma_actor[i])
+  P <- c(0,1,0,1)
+  C <- c(0,0,1,1)
+  p <- logistic(
+    post$a[i] +
+      sim_a_actor +
+      (post$bp[i] + post$bpC[i]*C)*P
+  )
+  return(p)
+}
+
+plot(0,0,type="n",xlab="prosoc_left/condition", 
+     ylab="proportion pulled left", ylim=c(0,1),xaxt="n",xlim=c(1,4))
+axis(1, at = 1:4, labels=c("0/0","1/0", "0/1", "1/1"))
+# plot 50 simulated actors
+for (i in 1:50) lines(1:4,sim.actor(i), col=col.alpha("black", 0.5))
+
 
 
