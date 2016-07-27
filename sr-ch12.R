@@ -307,5 +307,57 @@ axis(1, at = 1:4, labels=c("0/0","1/0", "0/1", "1/1"))
 # plot 50 simulated actors
 for (i in 1:50) lines(1:4,sim.actor(i), col=col.alpha("black", 0.5))
 
+## 12.4.3 Focus and multilevel prediction
+## multilevel models contain parameters with different FOCUS - i.e. which
+## level of the model the parameter makes direct predictions for.
+## (1) when retrodicting the sample, the parameters that describe the population
+## of clusters do not influence prediction directly. These population parameters
+## are called HYPERPARAMETERS, as they are parameters for parameters and they have
+## their effects during estimation by shrinking the varying effect parameters
+## towards a common mean.
+## (2) the same is true when forecasting a new observation for a cluster that was
+## present in the sample.
+## (3) when we wish to forecast for some new (unseen) cluster, we need the 
+## hyperparameters as they tell us how to forecast a new cluster by generating
+## a distribution of new per-cluster intercepts.
 
+## over-dispersed Poisson model
+library(rethinking)
+data(Kline)
+d <- Kline
+str(d)
+d$logpop <- log(d$population)
+d$society <- 1:10
+m12.6 <- map2stan(
+  alist(
+    total_tools ~ dpois(mu),
+    log(mu) <- a + a_society[society] + bp*logpop,
+    a ~ dnorm(0,10),
+    bp ~ dnorm(0,1),
+    a_society[society] ~ dnorm(0,sigma_society),
+    sigma_society ~ dcauchy(0,1)
+  ), data = d, iter=4000, chains=3
+)
 
+## to see the general trend that the model expects we need to simulate
+## counterfactual societies using hyperparameters alpha and sigma_society
+
+post <- extract.samples(m12.6)
+d.pred <- list(
+  logpop = seq(from=6, to=14, length.out=30),
+  society = rep(1,30)
+)
+a_society_sims <- rnorm(20000,0,post$sigma_society)
+a_society_sims <- matrix(a_society_sims, 2000, 10)
+link.m12.6 <- link(m12.6, n=2000, data = d.pred, replace = list(a_society=a_society_sims))
+
+plot(d$logpop, d$total_tools, col=rangi2, pch=16, xlab="log population", ylab="total tools")
+mu.median <- apply(link.m12.6, 2, median)
+lines(d.pred$logpop, mu.median)
+
+mu.PI <- apply(link.m12.6, 2, PI, prob=.97)
+shade(mu.PI, d.pred$logpop)
+mu.PI <- apply(link.m12.6, 2, PI, prob=.89)
+shade(mu.PI, d.pred$logpop)
+mu.PI <- apply(link.m12.6, 2, PI, prob=.67)
+shade(mu.PI, d.pred$logpop)
