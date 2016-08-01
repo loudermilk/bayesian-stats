@@ -19,6 +19,9 @@ m5.1 <- map(alist(
   sigma ~ dunif(0, 10)
 ), data = d)
 
+str(d)
+summary(d)
+
 MAM.seq <- seq(from = -3, to = 3.5, length.out = 30)
 mu <- link(m5.1, data=data.frame(MedianAgeMarriage.s = MAM.seq))
 mu.PI <- apply(mu, 2, PI)
@@ -135,6 +138,7 @@ for (i in 1:length(m.resid)) {
 ## your model.
 
 ## prepare new counterfactual data
+
 A.avg <- mean(d$MedianAgeMarriage.s)
 R.seq <- seq(from = -3, to = 3, length.out = 30)
 pred.data <- data.frame(
@@ -142,6 +146,7 @@ pred.data <- data.frame(
   MedianAgeMarriate.s = A.avg
 )
 
+head(pred.data)
 # compute counterfacual mean divorce
 ## DOESN'T WORK
 
@@ -153,6 +158,10 @@ pred.data <- data.frame(
 
 ## call link w/out specifying new data so it uses orig data
 mu <- link(m5.3)
+class(m5.3)
+class(mu)
+?link
+
 ## summarize samples across cases
 mu.mean <- apply(mu, 2, mean)
 mu.PI <- apply(mu, 2, PI)
@@ -192,7 +201,8 @@ data(milk)
 d <- milk
 str(d)
 
-## to what extent is energy content of milk related to percent neocortex brain mass
+## to what extent is energy content of milk related to percent 
+## neocortex brain mass?
 m5.5 <- map(
   alist(
     kcal.per.g ~ dnorm(mu, sigma),
@@ -205,6 +215,7 @@ m5.5 <- map(
 
 ## strange error msg need to investigate (discusses in book)
 d$neocortex.perc
+dim(d)
 
 dcc <- d[complete.cases(d),]
 m5.5 <- map(
@@ -350,7 +361,7 @@ m5.9 <- map(
 )
 precis(m5.9)
 
-## when two predictor variables are strongly correlated, including both in a 
+## When two predictor variables are strongly correlated, including both in a 
 ## model may lead to confusion.
 
 ## 5.3.2 Multicollinear milk
@@ -358,7 +369,7 @@ library(rethinking)
 data(milk)
 d <- milk
 
-## model kcal as funcion of perc.fat and perc.lactose
+## Model kcal as funcion of perc.fat and perc.lactose
 ## start with two bivariate models
 names(d)
 m5.10 <- map(
@@ -370,7 +381,7 @@ m5.10 <- map(
     sigma ~ dunif(0, 10)
   ), data = d
 )
-precis(m5.10)
+precis(m5.10, depth = 3)
 
 m5.11 <- map(
   alist(
@@ -400,7 +411,7 @@ precis(m5.12)
 pairs(~kcal.per.g + perc.fat + perc.lactose, data = d, col = rangi2)
 
 ## 5.3.3 Post-treatment bias
-## mistaken inferences that arise from omitting predictor variables. Called
+## Mistaken inferences that arise from omitting predictor variables. Called
 ## omitted variable bias (post-treatment bias is including variables)
 
 ## number of plants
@@ -509,6 +520,7 @@ mu.nwm <- post$a + post$bNWM
 mu.owm <- post$a + post$bOWM
 mu.s <- post$a + post$bS
 
+
 precis(data.frame(mu.ape, mu.nwm, mu.owm, mu.s))
 
 diff.NWM.OWM <- mu.nwm - mu.owm
@@ -564,6 +576,15 @@ glimmer(
 formula = dist ~ speed, data = d
 )
 ?glimmer
+
+## 5.7 Practice
+
+## 5E1. Which of the following are multiple linear regressions
+## 5E2. "Animal diversoty os linearly related to latitude, but only after
+## controling for plant diversity.
+
+## animal_diversity <- a + bL*latitude + bD*diversity
+
 
 
 

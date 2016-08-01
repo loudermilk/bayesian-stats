@@ -251,12 +251,14 @@ ways/sum(ways)
 ## hidden side os 0.75.
 
 ## Conj       Obs(B)   Obs(W)  Ways
-## (B/B)(W/W)    2        2       4
+## (B/B)(W/W)    2        2       4 2 8
 ## (W/W)(B/B)    0        0       0
-## (B/B)(B/W)    2        1       2
+## (B/B)(B/W)    2        1       2 2 4
 ## (B/W)(B/B)    1        0       0
 ## (W/W)(B/W)    0        1       0
-## (B,W)(W,W)    1        2       2
+## (B,W)(W,W)    1        2       2 1 2
+ways <- c(8,4,2)
+ways/sum(ways)
 
 ## 2H1. Suppose two species bear that are perfectly identical except in their
 ## family sizes. Species A give birth to twins 10% of the time, otherwise single

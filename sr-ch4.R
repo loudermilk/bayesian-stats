@@ -1,4 +1,5 @@
 ## sr-ch4.R
+library(rethinking)
 
 ## Simulate random walk on football field
 sum(runif(16, -1, 1)) # 16 random steps between -1 and 1, sum is total dist
@@ -69,8 +70,11 @@ str(d)
 # only work with adult data
 d2 <- d[d$age >= 18,]
 dim(d2)
+dim(d)
 dens(d2$height, main = "Adult !Kung Height")
 summary(d2)
+
+mean(d2$height)
 
 ## Model this data using a Gaussian distribution
 ## subscript i => each individual element of this list
@@ -80,7 +84,7 @@ summary(d2)
 
 ## plot priors to understand model assumptions
 curve(dnorm(x, 178, 20), from = 100, to=250)
-curve(dunif(x,0,50),from=10, to=60)
+curve(dunif(x,0,50),from = -10, to = 60)
 
 ## simulate heights by sampling the prior
 sample_mu <- rnorm(1e4, 178, 20)
@@ -89,7 +93,6 @@ prior_h <- rnorm(1e4, sample_mu, sample_sigma)
 dens(prior_h)
 
 ## 4.3.3 Grid approximation of the posterior distribution
-
 mu.list <- seq(from = 140, to = 160, length.out = 200)
 sigma.list <- seq(from = 4, to = 9, length.out = 200)
 post <- expand.grid(mu = mu.list, sigma = sigma.list)
@@ -163,7 +166,9 @@ m4.2 <- map(
   ),
   data = d2
 )
+
 precis(m4.2)
+precis(m4.1)
 
 ## Sampling from a map fit
 ## a quadratic approximation to a posterior distribution with more than one
@@ -394,7 +399,138 @@ lines(weight.seq, mu.mean)
 shade(mu.PI, weight.seq)
 shade(height.PI, weight.seq)
 
+## 4.7 Practice
+
+## 4E1. In the model below which line is the likelihood
+## y_i ~ Normal(mu, sigma)
+
+## 4E2. How many parameters are in the posterior distribution?
+## 2 parameters
+
+## 4E3. Using the above model definition, write down the appropriate form
+## of Baye's theorem including likelihood and priors.
+## y_i ~ Normal(mu, sigma)
+## mu ~ Normal(0,10)
+## sigma ~ Uniform(0,10)
+
+Pr(A|B) = Pr(B|A)Pr(A)/Pr(B)
+w <- 6
+n <- 9
+p_grid <- seq(from = 0, to = 1, length.out = 100)
+posterior <- dbinom(w, size = 9, prob = p_grid)
+posterior <- posterior/sum(posterior)
+posterior
 
 
+## 4M1. For the model definition below, simulate observed heights
+## from the prior, not the posterior.
+##### simulate heights by sampling the prior
+##### sample_mu <- rnorm(1e4, 178, 20)
+##### sample_sigma <- runif(1e4, 0, 50)
+##### prior_h <- rnorm(1e4, sample_mu, sample_sigma)
+##### dens(prior_h)
+## y_i ~ Normal(mu,sigma)
+## mu ~ Normal(0,10)
+## sigma ~ Uniform(0,10)
+
+mu.sim <- rnorm(n = 100, mean = 0, sd = 10)
+sigma.sim <- runif(n = 100, min = 0, max = 10)
+y.sim <- rnorm(n = 100, mean = mu.sim, sd = sigma.sim)
+dens(y.sim)
 
 
+## 4M2. Translate to MAP
+
+m1 <- map(
+  alist(
+    y ~ dnorm(mu, sigma),
+    mu ~ dnorm(0,10),
+    sigma ~ dunif(0,10)
+  )
+)
+
+## 4M3. Transmate map to mathematical
+flist <- alist(
+  y ~ dnorm(mu, sigma),
+  mu <- a + b*x,
+  a ~ dnorm(0,50),
+  b ~ dunif(0,10),
+  sigma ~ dunif(0,50)
+)
+
+y ~ Normal(mu, sigma)
+mu = a + b*x
+a ~ Normal(0,50)
+b ~ Uniform(0,10)
+sigma ~ Uniform(0,50)
+
+## 4M4.
+
+height ~ dnorm(mu, sigma)
+mu <- a + h*hist_height
+a ~ dnorm(65, 10)
+h ~ dnorm(0,5)
+sigma ~ dunif(0,1)
+
+## 4H1. Predict heights and 89% interval for these !Kung:
+## indiv weight expect_height 89_int
+## 1    46.95
+## 2    43.72
+## 3    64.78
+## 4    32.59
+## 5    54.63
+
+newWeights <- c(46.95, 43.72, 64.78, 32.59, 54.63)
+
+library(rethinking)
+data(Howell1)
+d <- Howell1
+head(d)
+table(d$male)
+
+d <- d[d$age >= 18,]
+
+myModel <- map(
+  alist(
+    height ~ dnorm(mu, sigma),
+    mu <- a + bW*weight,
+    a ~ dnorm(156, 100),
+    bW ~ dnorm(0,10),
+    sigma ~ dunif(0,50)
+  ), data = d
+)
+precis(myModel)
+
+heights <- lapply(newWeights, function(w) {
+  a <- myModel@coef['a']
+  bw <- myModel@coef['bW']
+  h <- a + bw*w
+  return(h)
+})
+
+df <- data.frame(weight = newWeights, height = unlist(heights))
+head(df)
+
+## 4H2. Fit model to children
+library(rethinking)
+data(Howell1)
+d <- Howell1
+head(d)
+d <- d[d$age < 18,]
+dim(d)
+d$log_h <- log(d$height)
+d$log_w <- log(d$weight)
+summary(d)
+
+kidModel2 <- map(
+  alist(
+    log_h ~ dnorm(mu, sigma),
+    mu <- a + bW*log_w,
+    a ~ dnorm(70, 100),
+    bW ~ dnorm(0,10),
+    sigma ~ dunif(0,50)
+  ), data = d
+)
+precis(kidModel2)
+summary(d)
+plot(log(d$weight), log(d$height))
