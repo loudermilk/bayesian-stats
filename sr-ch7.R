@@ -37,8 +37,6 @@ m7.2 <- map(
 
 range(d.A1$rugged)
 
-
-
 plotData <- function(df, map_model, x){
   r <- range(df[[x]])
 
@@ -58,7 +56,7 @@ plotData <- function(df, map_model, x){
 
 x <- "rugged"
 plotData(d.A0, m7.2, x)
-
+plotData(d.A1, m7.1, x)
 
 m7.3 <- map(
   alist(
@@ -67,8 +65,7 @@ m7.3 <- map(
     a ~ dnorm(8,100),
     bR ~ dnorm(0,1),
     sigma ~ dunif(0,10)
-  ), data = dd
-)
+  ), data = dd)
 
 plotData(df = dd, map_model = m7.3, x = "rugged")
 

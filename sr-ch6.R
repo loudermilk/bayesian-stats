@@ -1,12 +1,14 @@
 ## sr-ch6.R
+## Chapter 6 - Overfitting, Regularization, and Information Criteria
 ## 
+
 library(rethinking)
-
-
-sppnames <- c("afarensis", "africanus", "habilis", "boisei", "rudlfensis", "ergaster", "sapiens")
+sppnames <- c("afarensis", "africanus", "habilis", "boisei", 
+              "rudlfensis", "ergaster", "sapiens")
 brainvolcc <- c(438, 452, 612, 521, 752, 871, 1350)
 masskg <- c(37, 35.5, 34.5, 41.5, 55.5, 61, 53.5)
 d <- data.frame(species = sppnames, brain = brainvolcc, mass = masskg)
+head(d)
 
 # fit a simple linear model
 m6.1 <- lm(brain ~ mass, data = d)
@@ -23,13 +25,15 @@ m6.5 <- lm(brain ~ mass + I(mass^2) + I(mass^3) + I(mass^4) + I(mass^5), data = 
 m6.6 <- lm(brain ~ mass + I(mass^2) + I(mass^3) + I(mass^4) + I(mass^5) + I(mass^6), data = d)
 
 ## fit improves (increased R-squared as polynomial degree increases)
+summary(m6.5)
+summary(m6.6)
 
 ## model fitting is a form of data compression> parameters summarize relationship
 ## among the data compressing data into a simpler form although with loss of
 ## information about the sample.
 
 ## 6.1.2 Too few parameters hurts too
-## underfitting produces models that are inaccurate both withon and out of sample
+## underfitting produces models that are inaccurate both within and out of sample
 ## underfit models are insensitive to the sample
 
 plot(brain ~ mass, d, col="red")
@@ -39,11 +43,9 @@ for (i in 1:nrow(d)){
   abline(m0, col=col.alpha("black", 0.5))
 }
 
-
-## 6.2 Information theory and model performance
-## out-of-sample deviance
+## 6.2 Information theory and model performance out-of-sample deviance
 ## (1) establish that join probability is the right way to judge accuracy
-## (2) establish a measurement scale for distamce fro perfect accuracy
+## (2) establish a measurement scale for distance fro perfect accuracy
 ## (3) establish deviance as an approximation of relative distance from perfect accuracy.
 ## (4) establish that it is only deviance out-of-sample that is of interest
 
@@ -78,13 +80,28 @@ p <- c(0.3, 0.7)
 p <- c(0.01, 0.99)
 -sum(p*log(p))
 
+
 p <- c(0.5, 0.5)
 -sum(p*log(p))
 
+p_rain <- seq(from = 0, to = 1, length.out = 100)
+res <- sapply(p_rain, function(i) {
+  p <- c(i, 1-i)
+  return(-sum(p*log(p)))  
+})
+which.max(res)
+p_rain[50]
 
 ## rain, sun, snow
 p <- c(0.7, 0.15, 0.15)
 -sum(p*log(p))
+
+p <- c(0.33, 0.33, 0.33)
+-sum(p*log(p))
+
+p <- rep(0.2,5)
+-sum(p*log(p))
+
 
 ## 6.2.3 From entropy to accuracy
 ## DIVERGENCE - the additional uncertainty induced by using probabilities from
@@ -98,10 +115,10 @@ m6.1 <- lm(brain ~ mass, data = d)
 ## Deviance is a principled way to measure distance from the target. Deviance
 ## has the same problem at R^2... it always improves as the model gets more complex.
 
-## (a) given tarining sample of size N
+## (a) given training sample of size N
 ## (b) fit model to training sample and compute deviance on the training sample (D_train)
 ## (c)Suppose another sample of size N from the same process. This is the test sample.
-## (d) compute the deviance on the test sample. Use the MAP estimayes from (b) to compute
+## (d) compute the deviance on the test sample. Use the MAP estimates from (b) to compute
 ## the devaince for the data in the test sample called D_test.
 
 N <- 20
@@ -114,7 +131,7 @@ dev <- sapply(kseq, function(k) {
 })
 
 plot(1:5, dev[1,], ylim = c(min(dev[1:2,])-5, max(dev[1:2,])+10), 
-     xlim = c(1,5.1),xlab="num parameters", ylab = "deviance", pch=16, col=rangi2)
+     xlim = c(1,5.1), xlab="num parameters", ylab = "deviance", pch=16, col=rangi2)
 mtext(concat("N=",N))
 points((1:5)+0.1, dev[2,])
 for (i in kseq) {
@@ -126,7 +143,7 @@ for (i in kseq) {
 
 
 ## 6.3 Regularization
-## when the priors are flat the machine interprets this to mean that every
+## When the priors are flat the machine interprets this to mean that every
 ## parameter value is equally plausible -- so the model returns a posterior
 ## that encodes as much of the training sample as possible.
 
@@ -261,7 +278,7 @@ WAIC(m6.14)
 diff <- rnorm(1e5, 6.7, 7.26)
 sum(diff<0)/1e5
 
-## how you interpret differences in information criteria always depends on context:
+## How you interpret differences in information criteria always depends on context:
 ## sample size, past research, nature of measurements.
 
 ## 6.5.1.2 Comparing estimates
