@@ -91,3 +91,4 @@ mu.NotAfrica.mean <- apply(mu.NotAfrica, 2, mean)
 mu.NotAfrica.PI <- apply(mu.NotAfrica, 2, PI)
 mu.Africa.mean <- apply(mu.Africa, 2, mean)
 mu.Africa.PI <- apply(mu.Africa, 2, PI)
+
